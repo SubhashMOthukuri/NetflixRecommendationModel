@@ -1,0 +1,195 @@
+# Spark Configuration - Production ML Pipeline (Netflix/Uber Standards)
+# Used by all Spark jobs for consistent, production-grade settings
+
+# Spark Application Settings
+spark:
+  app_name: "bronze_ingestion_pipeline"
+  
+  # Master URL (local for dev, spark://host:port for cluster)
+  master: "local[*]"  # Use all available cores locally
+  # master: "spark://spark-master:7077"  # Production cluster
+  
+  # Spark Session Configuration
+  session:
+    # Enable Hive support (for Delta/Iceberg tables)
+    enable_hive_support: true
+    
+    # Spark UI (monitoring dashboard)
+    ui_port: 4040
+    
+    # Serialization (faster than default Java serialization)
+    serializer: "org.apache.spark.serializer.KryoSerializer"
+    
+    # SQL settings
+    sql:
+      # Adaptive Query Execution (AQE) - optimizes queries automatically
+      adaptive:
+        enabled: true
+        coalesce_partitions:
+          enabled: true
+          min_partition_num: 1
+          initial_partition_num: 200
+      
+      # Partition handling
+      files:
+        max_records_per_file: 1000000  # 1M records per Parquet file (optimal size)
+        max_partition_bytes: 134217728  # 128MB per partition (S3 optimal)
+        partition_column_type_inference: true
+      
+      # Shuffle partitions (default parallelism)
+      shuffle_partitions: 200  # Adjust based on cluster size
+      
+      # Broadcast join threshold (for small tables)
+      auto_broadcast_join_threshold: 10485760  # 10MB
+
+# Streaming Configuration (Structured Streaming)
+streaming:
+  # Batch interval (how often to process data)
+  batch_interval: "30s"  # Process every 30 seconds (production standard)
+  
+  # Max records per batch (prevent memory issues)
+  max_records_per_batch: 10000
+  
+  # Max batch size in MB (safety limit)
+  max_batch_size_mb: 100
+  
+  # Checkpoint location (for recovery)
+  checkpoint_location: "s3a://data-lake/checkpoints/bronze_ingestion/"
+  # checkpoint_location: "file:///tmp/checkpoints/bronze_ingestion/"  # Local dev
+  
+  # Trigger settings
+  trigger:
+    type: "processingTime"  # Time-based (recommended for production)
+    interval: "30s"  # Process every 30 seconds
+    # type: "once"  # Process once (for batch jobs)
+    # type: "continuous"  # Continuous processing (experimental)
+
+# Kafka Streaming Configuration
+kafka:
+  # Consumer settings
+  consumer:
+    # Max offsets to read per trigger (batch size)
+    max_offsets_per_trigger: 10000
+    
+    # Fetch settings
+    fetch_min_bytes: 1024  # Min bytes to fetch
+    fetch_max_wait_ms: 500  # Max wait time
+    
+    # Offset management
+    starting_offsets: "earliest"  # Start from earliest to process all messages (or "latest" for new only)
+    fail_on_data_loss: false  # Don't fail if data loss detected
+  
+  # Producer settings (for DLQ)
+  producer:
+    batch_size: 32768  # 32KB batch
+    linger_ms: 5  # Wait 5ms to batch
+
+# Memory and Performance Settings
+performance:
+  # Driver memory (main process)
+  driver_memory: "2g"  # 2GB for driver
+  
+  # Executor memory (worker processes)
+  executor_memory: "4g"  # 4GB per executor
+  
+  # Executor cores (parallelism per executor)
+  executor_cores: 2
+  
+  # Dynamic allocation (scale executors automatically)
+  dynamic_allocation:
+    enabled: true
+    min_executors: 1
+    max_executors: 10
+    initial_executors: 2
+  
+  # Garbage collection (optimize for streaming)
+  gc:
+    enabled: true
+    algorithm: "G1GC"  # G1 garbage collector (better for streaming)
+
+# Storage Configuration
+storage:
+  # Object store (S3/MinIO)
+  s3:
+    endpoint: "http://localhost:9000"  # MinIO local
+    # endpoint: "https://s3.amazonaws.com"  # AWS S3 production
+    access_key: "admin"  # MinIO default
+    secret_key: "admin123"  # MinIO default
+    path_style_access: true  # Required for MinIO
+  
+  # Output paths
+  bronze:
+    raw_path: "s3a://data-lake/bronze/raw/"
+    validated_path: "s3a://data-lake/bronze/validated/"
+    partition_by: ["dt", "hr"]  # Partition by date and hour
+    format: "parquet"  # Parquet format (columnar, compressed)
+    compression: "snappy"  # Snappy compression (fast, good ratio)
+  
+  # Checkpoint settings
+  checkpoint:
+    enabled: true
+    location: "s3a://data-lake/checkpoints/bronze_ingestion/"
+    retention_period: "7d"  # Keep checkpoints for 7 days
+
+# Logging Configuration
+logging:
+  level: "INFO"  # INFO, WARN, ERROR, DEBUG
+  log_path: "logs/spark_bronze_ingestion.log"
+  
+  # Spark event log (for Spark UI history)
+  event_log:
+    enabled: true
+    directory: "s3a://data-lake/spark-logs/"
+
+# Monitoring and Observability
+monitoring:
+  # Spark metrics
+  metrics:
+    enabled: true
+    namespace: "bronze_ingestion"
+  
+  # Health checks
+  health_check:
+    enabled: true
+    interval_seconds: 60
+
+# Error Handling
+error_handling:
+  # Max retries for failed tasks
+  max_retries: 3
+  
+  # Retry delay (exponential backoff)
+  retry_delay_seconds: 10
+  
+  # DLQ settings
+  dlq:
+    enabled: true
+    path: "s3a://data-lake/dlq/bronze_ingestion/"
+
+# Environment-specific overrides
+# These can be overridden per environment (dev/staging/prod)
+environments:
+  dev:
+    spark:
+      master: "local[*]"
+    storage:
+      s3:
+        endpoint: "http://localhost:9000"
+  
+  staging:
+    spark:
+      master: "spark://staging-spark-master:7077"
+    storage:
+      s3:
+        endpoint: "https://s3-staging.amazonaws.com"
+  
+  prod:
+    spark:
+      master: "spark://prod-spark-master:7077"
+    performance:
+      executor_memory: "8g"
+      executor_cores: 4
+    storage:
+      s3:
+        endpoint: "https://s3.amazonaws.com"
+

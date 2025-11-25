@@ -1,0 +1,95 @@
+# Kafka Configuration - Netflix Production Standards
+# For Video Recommendation System Pipeline
+
+# Kafka Broker Configuration
+broker:
+  bootstrap_servers: "localhost:9092"  # Local development
+  # bootstrap_servers: "kafka1:9092,kafka2:9092,kafka3:9092"  # Production (multiple brokers)
+  
+# Topics Configuration
+topics:
+  # Main event topic for video recommendation system
+  user_events: "user_events"
+  
+  # Additional topics (for future use)
+  video_play_events: "video_play_events"
+  recommendation_events: "recommendation_events"
+  
+# Producer Configuration (Netflix standards)
+producer:
+  # Reliability settings
+  acks: "all"  # Wait for all replicas to acknowledge (highest reliability)
+  retries: 5  # Retry failed sends
+  max_in_flight_requests_per_connection: 5  # Allow 5 unacknowledged requests
+  
+  # Performance settings
+  linger_ms: 5  # Wait 5ms to batch messages (improves throughput)
+  batch_size: 32768  # 32KB batch size (Netflix standard)
+  compression_type: "snappy"  # Compress messages (saves bandwidth)
+  
+  # Buffer settings
+  buffer_memory: 33554432  # 32MB buffer
+  max_block_ms: 60000  # Max time to block when buffer is full (1 minute)
+  
+  # Timeout settings
+  request_timeout_ms: 30000  # 30 seconds
+  delivery_timeout_ms: 120000  # 2 minutes total delivery timeout
+  
+  # Idempotence (prevents duplicates)
+  enable_idempotence: true  # Netflix uses this for exactly-once semantics
+
+# Consumer Configuration (for Spark/processing)
+consumer:
+  group_id: "video_recommendation_pipeline_group"
+  
+  # Offset management
+  auto_offset_reset: "earliest"  # Start from beginning if no offset
+  enable_auto_commit: false  # Manual commit for exactly-once processing
+  
+  # Performance settings
+  fetch_min_bytes: 1  # Minimum bytes to fetch
+  fetch_max_wait_ms: 500  # Max wait time for fetch
+  max_poll_records: 500  # Max records per poll
+  
+  # Session and heartbeat
+  session_timeout_ms: 30000  # 30 seconds
+  heartbeat_interval_ms: 3000  # 3 seconds
+  
+  # Isolation level
+  isolation_level: "read_committed"  # Only read committed messages
+
+# Schema Registry Configuration (for schema validation)
+schema_registry:
+  url: "http://localhost:8081"  # Schema Registry endpoint
+  # url: "http://schema-registry:8081"  # Docker internal
+  subject_name: "user_events-value"  # Schema subject name
+  compatibility: "BACKWARD"  # Backward compatible (old consumers work)
+
+# Rate Limiting (prevent overwhelming Kafka)
+rate_limiting:
+  events_per_second: 100  # Max events per second (None = unlimited)
+  events_per_minute: 5000  # Max events per minute (None = unlimited)
+
+# Data Quality Settings
+data_quality:
+  schema_validation: true  # Enable schema validation
+  max_message_size: 10485760  # 10MB max message size
+  enable_dlq: true  # Enable Dead Letter Queue for bad messages
+  dlq_topic: "user_events_dlq"  # DLQ topic name
+
+# Monitoring & Observability
+monitoring:
+  enable_metrics: true  # Enable Kafka metrics
+  metrics_topic: "_metrics"  # Metrics topic (if using)
+  enable_tracing: false  # Distributed tracing (for production)
+
+# Security (Production settings - commented for local dev)
+# security:
+#   protocol: "SASL_SSL"
+#   sasl_mechanism: "PLAIN"
+#   sasl_username: "${KAFKA_USERNAME}"
+#   sasl_password: "${KAFKA_PASSWORD}"
+#   ssl_cafile: "/path/to/ca-cert"
+#   ssl_certfile: "/path/to/client-cert"
+#   ssl_keyfile: "/path/to/client-key"
+
