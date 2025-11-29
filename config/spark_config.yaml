@@ -3,7 +3,7 @@
 
 # Spark Application Settings
 spark:
-  app_name: "bronze_ingestion_pipeline"
+  app_name: "bronze_ingestion_pipeline"  # Default app name (can be overridden per job)
   
   # Master URL (local for dev, spark://host:port for cluster)
   master: "local[*]"  # Use all available cores locally
@@ -125,11 +125,44 @@ storage:
     format: "parquet"  # Parquet format (columnar, compressed)
     compression: "snappy"  # Snappy compression (fast, good ratio)
   
+  silver:
+    silver_path: "s3a://data-lake/silver/silver/"
+    partition_by: ["event_date", "event_type"]  # Partition by event date and type
+    format: "parquet"  # Parquet format (columnar, compressed)
+    compression: "snappy"  # Snappy compression (fast, good ratio)
+    partition_tracker_path: "s3a://data-lake/metadata/silver_partition_tracker/"
+  
+  gold:
+    gold_path: "s3a://data-lake/gold/features/"  # Gold layer feature storage
+    partition_by: ["feature_date", "feature_type"]  # Partition by date and feature type
+    format: "parquet"  # Parquet format (columnar, compressed)
+    compression: "snappy"  # Snappy compression (fast, good ratio)
+    
+    # Feast configuration
+    feast:
+      feast_repo_path: "feature_repo"  # Path to Feast feature repository
+      feast_registry_path: "feature_repo/registry.db"  # Path to Feast registry
+      offline_store_path: "s3a://data-lake/gold/features/"  # Offline store (Parquet/S3)
+      online_store:
+        type: "redis"  # Online store type (redis, sqlite, etc.)
+        host: "localhost"  # Redis host
+        port: 6379  # Redis port
+    
+    # Feature schema registry
+    schema_registry_path: "s3a://data-lake/gold/schema_registry/"  # Feature schema registry storage
+    
+    # Feature monitoring
+    monitoring:
+      drift_threshold: 0.1  # 10% change threshold for drift detection
+      freshness_threshold_hours: 24  # 24 hours freshness threshold
+      quality_threshold: 0.8  # Minimum quality score (0.0-1.0)
+  
   # Checkpoint settings
   checkpoint:
     enabled: true
     location: "s3a://data-lake/checkpoints/bronze_ingestion/"
     retention_period: "7d"  # Keep checkpoints for 7 days
+    gold_checkpoint_location: "s3a://data-lake/checkpoints/gold_processing/"  # Gold layer checkpoints
 
 # Logging Configuration
 logging:
@@ -165,6 +198,8 @@ error_handling:
   dlq:
     enabled: true
     path: "s3a://data-lake/dlq/bronze_ingestion/"
+    silver_path: "s3a://data-lake/dlq/silver_processing/"
+    gold_path: "s3a://data-lake/dlq/gold_processing/"  # Gold layer DLQ
 
 # Environment-specific overrides
 # These can be overridden per environment (dev/staging/prod)

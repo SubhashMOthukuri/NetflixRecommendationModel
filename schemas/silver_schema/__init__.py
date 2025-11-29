@@ -1,0 +1,4 @@
+"""
+Silver schema definitions
+"""
+

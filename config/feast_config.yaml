@@ -1,0 +1,75 @@
+# Feast Feature Store Configuration - Gold Layer
+# Configuration for Feast feature store (offline and online stores)
+
+# Project Configuration
+project:
+  name: "gold_features"
+  description: "Gold layer feature store for ML pipeline"
+
+# Registry Configuration
+registry:
+  # Registry type: "file", "s3", "gcs", "postgres"
+  type: "file"
+  path: "feature_repo/registry.db"  # Local file path
+  # For S3: path: "s3://data-lake/gold/feast_registry/registry.db"
+  # For PostgreSQL: connection_string: "postgresql://user:pass@host:5432/feast"
+
+# Provider Configuration
+provider: "local"  # "local", "aws", "gcp", "azure"
+
+# Online Store Configuration (for real-time serving)
+online_store:
+  type: "redis"  # "redis", "sqlite", "dynamodb", "bigtable"
+  
+  # Redis configuration
+  redis:
+    host: "localhost"
+    port: 6379
+    password: null  # Optional password
+    ssl: false
+    connection_string: "localhost:6379"
+  
+  # SQLite configuration (for local dev)
+  # sqlite:
+  #   path: "feature_repo/online_store.db"
+
+# Offline Store Configuration (for training data)
+offline_store:
+  type: "file"  # "file", "bigquery", "redshift", "snowflake"
+  
+  # File-based offline store (Parquet/S3)
+  file:
+    path: "s3a://data-lake/gold/features/"  # S3/MinIO path
+    # For local: path: "file:///tmp/features/"
+  
+  # BigQuery configuration (for production)
+  # bigquery:
+  #   project: "your-gcp-project"
+  #   dataset: "feast_features"
+
+# Feature Store Settings
+settings:
+  # Materialization settings
+  materialization:
+    enabled: true
+    interval_hours: 1  # Materialize features every hour
+    start_date: "2024-01-01"  # Start date for materialization
+  
+  # Feature serving settings
+  serving:
+    timeout_seconds: 10  # Timeout for feature retrieval
+    batch_size: 1000  # Batch size for batch feature retrieval
+  
+  # Monitoring settings
+  monitoring:
+    enabled: true
+    drift_detection: true
+    freshness_check: true
+
+# Feature Definitions
+# Features are defined in feature_repo/features/ directory
+# Example feature definitions:
+# - user_features.py (user-level features)
+# - item_features.py (item-level features)
+# - session_features.py (session-level features)
+

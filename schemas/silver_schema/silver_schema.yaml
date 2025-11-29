@@ -1,0 +1,425 @@
+# Silver Layer Schema Definition - Production ML Pipeline
+# Defines the cleaned, enriched, and transformed data structure for Silver layer
+# Silver layer = Cleaned data ready for analytics and ML feature engineering
+
+# Schema Metadata
+schema:
+  name: "SilverUserEvent"
+  namespace: "com.netflix.silver"
+  version: "1.0.0"
+  description: "Silver layer schema for cleaned and enriched user events"
+  
+# Field Definitions
+fields:
+  # Event Identification (from bronze, cleaned)
+  - name: "event_id"
+    type: "string"
+    required: true
+    description: "Unique event identifier (UUID)"
+    validation:
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      min_length: 36
+      max_length: 36
+  
+  - name: "event_type"
+    type: "string"
+    required: true
+    description: "Type of event (normalized)"
+    validation:
+      allowed_values: ["video_play_start", "video_play_pause", "video_play_complete", "video_seek", "post_like", "post_share", "add_to_cart", "purchase", "search", "page_view"]
+      min_length: 1
+  
+  # Timestamps (normalized and validated)
+  - name: "event_timestamp"
+    type: "timestamp"
+    required: true
+    description: "Event timestamp (normalized to UTC, milliseconds)"
+    validation:
+      min_value: 946684800000  # 2000-01-01 (reasonable minimum)
+      max_value: 4102444800000  # 2100-01-01 (reasonable maximum)
+  
+  - name: "event_date"
+    type: "date"
+    required: true
+    description: "Event date (YYYY-MM-DD) for partitioning"
+    validation:
+      format: "YYYY-MM-DD"
+  
+  - name: "event_hour"
+    type: "integer"
+    required: true
+    description: "Event hour (0-23) for partitioning"
+    validation:
+      min_value: 0
+      max_value: 23
+  
+  # User Information (cleaned and enriched)
+  - name: "user_id"
+    type: "string"
+    required: false
+    description: "User identifier (hashed/scrubbed, may be null)"
+    validation:
+      min_length: 0
+      max_length: 64
+  
+  - name: "user_segment"
+    type: "string"
+    required: false
+    description: "User segment (enriched from lookup: premium, standard, trial)"
+    validation:
+      allowed_values: ["premium", "standard", "trial", "guest", null]
+  
+  - name: "session_id"
+    type: "string"
+    required: false
+    description: "Session identifier"
+    validation:
+      min_length: 0
+      max_length: 64
+  
+  # Event Data (flattened and cleaned)
+  - name: "action"
+    type: "string"
+    required: false
+    description: "Action performed (normalized)"
+    validation:
+      allowed_values: ["play", "pause", "complete", "seek", "like", "share", "add", "purchase", "search", "view", null]
+  
+  - name: "target_id"
+    type: "string"
+    required: false
+    description: "Target entity ID (e.g., video_id, post_id, product_id)"
+    validation:
+      min_length: 0
+      max_length: 128
+  
+  - name: "target_type"
+    type: "string"
+    required: false
+    description: "Type of target (normalized)"
+    validation:
+      allowed_values: ["video", "post", "product", "page", null]
+  
+  # Video-specific fields (cleaned and enriched)
+  - name: "video_id"
+    type: "string"
+    required: false
+    description: "Video identifier (if event is video-related)"
+    validation:
+      min_length: 0
+      max_length: 128
+  
+  - name: "video_title"
+    type: "string"
+    required: false
+    description: "Video title (cleaned, may be null)"
+    validation:
+      max_length: 500
+  
+  - name: "video_duration_seconds"
+    type: "long"
+    required: false
+    description: "Video duration in seconds"
+    validation:
+      min_value: 0
+      max_value: 86400  # 24 hours max
+  
+  - name: "play_position_seconds"
+    type: "long"
+    required: false
+    description: "Playback position in seconds"
+    validation:
+      min_value: 0
+  
+  - name: "video_quality"
+    type: "string"
+    required: false
+    description: "Video quality (normalized)"
+    validation:
+      allowed_values: ["240p", "360p", "480p", "720p", "1080p", "1440p", "2160p", "4K", null]
+  
+  - name: "video_category"
+    type: "string"
+    required: false
+    description: "Video category (enriched from lookup)"
+    validation:
+      allowed_values: ["action", "comedy", "drama", "documentary", "horror", "sci-fi", "thriller", null]
+  
+  # Device/Platform Information (cleaned and normalized)
+  - name: "device_type"
+    type: "string"
+    required: false
+    description: "Device type (normalized)"
+    validation:
+      allowed_values: ["mobile", "tablet", "desktop", "tv", "smart_tv", "console", null]
+  
+  - name: "os"
+    type: "string"
+    required: false
+    description: "Operating system (normalized)"
+    validation:
+      allowed_values: ["android", "ios", "windows", "macos", "linux", "tvos", "webos", null]
+  
+  - name: "browser"
+    type: "string"
+    required: false
+    description: "Browser (normalized, may be null for apps)"
+    validation:
+      allowed_values: ["chrome", "firefox", "safari", "edge", "opera", "samsung_internet", null]
+  
+  - name: "ip_address"
+    type: "string"
+    required: false
+    description: "IP address (anonymized, last octet removed)"
+    validation:
+      pattern: "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.0$"  # Anonymized format
+  
+  # Enrichment Fields (added during silver processing)
+  - name: "country"
+    type: "string"
+    required: false
+    description: "Country code (enriched from IP lookup)"
+    validation:
+      pattern: "^[A-Z]{2}$"  # ISO 3166-1 alpha-2
+  
+  - name: "region"
+    type: "string"
+    required: false
+    description: "Region/state (enriched from IP lookup)"
+    validation:
+      max_length: 100
+  
+  - name: "timezone"
+    type: "string"
+    required: false
+    description: "Timezone (enriched from IP lookup)"
+    validation:
+      pattern: "^[A-Za-z_/]+$"  # e.g., "America/New_York"
+  
+  # Processing Metadata (from bronze, updated for silver)
+  - name: "silver_processing_metadata"
+    type: "struct"
+    required: true
+    description: "Metadata about silver processing"
+    fields:
+      - name: "bronze_ingestion_date"
+        type: "string"
+        required: true
+        description: "Date when data was ingested into bronze"
+      
+      - name: "bronze_ingestion_hour"
+        type: "integer"
+        required: true
+        description: "Hour when data was ingested into bronze"
+      
+      - name: "silver_processing_timestamp"
+        type: "timestamp"
+        required: true
+        description: "When data was processed into silver (milliseconds)"
+      
+      - name: "silver_processing_date"
+        type: "date"
+        required: true
+        description: "Date when data was processed into silver (YYYY-MM-DD)"
+      
+      - name: "data_quality_score"
+        type: "double"
+        required: false
+        description: "Data quality score (0.0-1.0)"
+        validation:
+          min_value: 0.0
+          max_value: 1.0
+      
+      - name: "enrichment_applied"
+        type: "array"
+        required: false
+        description: "List of enrichments applied (e.g., ['user_segment', 'video_category', 'country'])"
+        item_type: "string"
+      
+      - name: "transformation_applied"
+        type: "array"
+        required: false
+        description: "List of transformations applied (e.g., ['flatten', 'normalize', 'type_cast'])"
+        item_type: "string"
+      
+      - name: "validation_status"
+        type: "string"
+        required: true
+        description: "Validation status"
+        validation:
+          allowed_values: ["valid", "warning", "invalid"]
+      
+      - name: "validation_errors"
+        type: "array"
+        required: false
+        description: "List of validation errors (if any)"
+        item_type: "string"
+
+# Partitioning Strategy
+partitioning:
+  columns:
+    - "event_date"  # Partition by event date (not ingestion date)
+    - "event_type"  # Partition by event type for better query performance
+  strategy: "hive"  # Hive-style partitioning (event_date=2024-01-15/event_type=video_play_start/)
+  
+# Data Quality Rules
+data_quality:
+  # Minimum quality score to accept record
+  min_quality_score: 0.7
+  
+  # Required fields for different event types
+  required_fields_by_event_type:
+    video_play_start: ["event_id", "event_timestamp", "video_id"]
+    video_play_complete: ["event_id", "event_timestamp", "video_id", "play_position_seconds"]
+    post_like: ["event_id", "event_timestamp", "target_id"]
+    purchase: ["event_id", "event_timestamp", "target_id", "target_type"]
+  
+  # Business rules
+  business_rules:
+    - name: "play_position_less_than_duration"
+      condition: "play_position_seconds <= video_duration_seconds"
+      error_message: "Play position cannot exceed video duration"
+    
+    - name: "event_timestamp_not_future"
+      condition: "event_timestamp <= current_timestamp()"
+      error_message: "Event timestamp cannot be in the future"
+    
+    - name: "video_id_exists_for_video_events"
+      condition: "event_type LIKE 'video_%' AND video_id IS NOT NULL"
+      error_message: "Video events must have video_id"
+
+# Type Mappings (for type casting)
+type_mappings:
+  string_fields:
+    - "event_id"
+    - "event_type"
+    - "user_id"
+    - "session_id"
+    - "action"
+    - "target_id"
+    - "target_type"
+    - "video_id"
+    - "video_title"
+    - "video_quality"
+    - "video_category"
+    - "device_type"
+    - "os"
+    - "browser"
+    - "ip_address"
+    - "country"
+    - "region"
+    - "timezone"
+    - "user_segment"
+  
+  long_fields:
+    - "event_timestamp"
+    - "video_duration_seconds"
+    - "play_position_seconds"
+  
+  integer_fields:
+    - "event_hour"
+  
+  date_fields:
+    - "event_date"
+  
+  timestamp_fields:
+    - "event_timestamp"
+  
+  double_fields:
+    - "data_quality_score"
+  
+  boolean_fields: []
+  
+  array_fields:
+    - "silver_processing_metadata.enrichment_applied"
+    - "silver_processing_metadata.transformation_applied"
+    - "silver_processing_metadata.validation_errors"
+  
+  struct_fields:
+    - "silver_processing_metadata"
+
+# Normalization Rules
+normalization:
+  # String normalization
+  string_normalization:
+    trim_whitespace: true
+    lowercase: ["event_type", "action", "target_type", "device_type", "os", "browser", "video_quality", "video_category", "user_segment"]
+    uppercase: ["country"]
+  
+  # Timestamp normalization
+  timestamp_normalization:
+    timezone: "UTC"
+    format: "milliseconds"  # All timestamps in milliseconds since epoch
+  
+  # Enum normalization (map variations to standard values)
+  enum_mappings:
+    device_type:
+      "phone": "mobile"
+      "smartphone": "mobile"
+      "ipad": "tablet"
+      "laptop": "desktop"
+      "computer": "desktop"
+      "smart-tv": "smart_tv"
+      "smart tv": "smart_tv"
+    
+    os:
+      "android": "android"
+      "ios": "ios"
+      "iphone os": "ios"
+      "windows": "windows"
+      "mac": "macos"
+      "macos": "macos"
+      "darwin": "macos"
+    
+    video_quality:
+      "240": "240p"
+      "360": "360p"
+      "480": "480p"
+      "720": "720p"
+      "1080": "1080p"
+      "1440": "1440p"
+      "2160": "2160p"
+      "4k": "4K"
+      "uhd": "4K"
+
+# Null Handling Rules
+null_handling:
+  # Fields that can be null
+  nullable_fields:
+    - "user_id"
+    - "session_id"
+    - "action"
+    - "target_id"
+    - "target_type"
+    - "video_id"
+    - "video_title"
+    - "video_duration_seconds"
+    - "play_position_seconds"
+    - "video_quality"
+    - "video_category"
+    - "device_type"
+    - "os"
+    - "browser"
+    - "ip_address"
+    - "country"
+    - "region"
+    - "timezone"
+    - "user_segment"
+  
+  # Default values for nulls
+  default_values:
+    action: null
+    target_type: null
+    video_quality: "unknown"
+    device_type: "unknown"
+    os: "unknown"
+  
+  # Fields that should not be null (will fail validation)
+  required_non_null_fields:
+    - "event_id"
+    - "event_type"
+    - "event_timestamp"
+    - "event_date"
+    - "event_hour"
+    - "silver_processing_metadata"
+

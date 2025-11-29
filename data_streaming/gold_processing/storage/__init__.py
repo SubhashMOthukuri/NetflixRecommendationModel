@@ -1,0 +1,4 @@
+"""
+Gold Layer Storage Components
+"""
+
